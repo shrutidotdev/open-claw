@@ -1,0 +1,22 @@
+{
+  "name": "open-claw",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "open-claw": "./index.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@clack/core": "^1.4.1",
+    "@clack/prompts": "^1.5.1",
+    "@types/node": "^25.9.3",
+    "commander": "^15.0.0",
+    "figlet": "^1.11.0"
+  }
+}
