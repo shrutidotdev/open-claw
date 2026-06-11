@@ -19,3 +19,8 @@ installed open-claw@link:open-claw with binaries:
 PS C:\Users\thede\Desktop\open-claw> bun open-claw wakeup
 🤖 Welcome to Open-Claw!
 PS C:\Users\thede\Desktop\open-claw>  -->
+
+
+now this is registered globaly => open cmd and run C:\Users\thede>open-claw wakeup
+
+

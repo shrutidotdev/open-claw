@@ -13,6 +13,7 @@ program
     .description("Show the banner and pick cli or telegram node")
     .action(async() => {
         console.log("🤖 Welcome to Open-Claw!")
+        await wokeUp();
     });
 
 await program.parseAsync(process.argv)
