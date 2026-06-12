@@ -1,5 +1,6 @@
 #!/usr/bin/env bun 
 import { Command } from "commander";
+import { wokeUp } from "./terminal-interface/wakeup";
 
 const program = new Command();
 
