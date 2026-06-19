@@ -1,6 +1,7 @@
-import type{ ActionLog, ActionStatus} from './types';
+import{ isMutationType, type ActionLog, type ActionStatus} from './types';
 
 export class ActionTracker {
+    // this is internal array to store all actions taken by the agent, including their status and details
     private actions: ActionLog[] = [];
 
     log(
@@ -8,6 +9,7 @@ export class ActionTracker {
             id?: string;
             timestamp?: Date; 
         },
+        // with id and timestamps It pushes this formatted object into the tracking array and returns it so the orchestrator knows the log was successfully recorded.
     ): ActionLog{
         const action: ActionLog = {
             id: entry.id ?? `action_${this.actions.length}`,
@@ -27,6 +29,15 @@ export class ActionTracker {
     }
 
     getPendingMutations(): ActionLog[] {
-        return this.actions.filter(action => action.status === ActionStatus.Pending);
+        return this.actions.filter((a) => isMutationType(a.type) && a.status === "Pending");
+    }
+
+    updateStatus(id: string, status: ActionStatus, userApproved?: boolean): void {
+        const action = this.actions.find((a) => a.id === id);
+        if(!action) return;
+        if (action) {
+            action.status = status;
+            action.userApproved = userApproved;
+        }
     }
 }
