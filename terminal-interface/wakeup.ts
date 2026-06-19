@@ -4,6 +4,7 @@ import figlet from "figlet";
 
 const BANNER_FONT = "ANSI Shadow";
 const CYBERPUNK_NEON = chalk.hex("#0ff").bold;
+
 const FACE = chalk.hex("#ECF8DC").bold;
 
 function printBanner(ascii: string) {

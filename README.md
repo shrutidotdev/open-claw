@@ -21,6 +21,6 @@ PS C:\Users\thede\Desktop\open-claw> bun open-claw wakeup
 PS C:\Users\thede\Desktop\open-claw>  -->
 
 
-now this is registered globaly => open cmd and run C:\Users\thede>open-claw wakeup
+<!-- now this is registered globaly => open cmd and run C:\Users\thede>open-claw wakeup -->
 
 
