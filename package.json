@@ -7,7 +7,8 @@
     "open-claw": "./index.ts"
   },
   "devDependencies": {
-    "@types/bun": "^1.3.14"
+    "@types/bun": "^1.3.14",
+    "@types/marked-terminal": "^6.1.1"
   },
   "peerDependencies": {
     "typescript": "^5"
@@ -19,6 +20,8 @@
     "@types/node": "^25.9.3",
     "chalk": "^5.6.2",
     "commander": "^15.0.0",
-    "figlet": "^1.11.0"
+    "figlet": "^1.11.0",
+    "marked": "^18.0.5",
+    "marked-terminal": "^7.3.0"
   }
 }
