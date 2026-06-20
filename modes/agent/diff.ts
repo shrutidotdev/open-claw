@@ -16,4 +16,35 @@ export function getBeforeAndAfter(action: ActionLog[]): { before: string, after:
             after: ''
         }
     }
+
+    // the file was created , before is nothing
+    if(first?.type === "file_create"){
+        return {
+            before: '',
+            after: last?.details.after ?? ''
+        }
+    }
+
+    // whatever the first action left behind = initial state
+    const before = first?.details.before ?? '';
+
+    // whatever the last action left behind = final state 
+    const after = last?.details.after ?? '';
+
+    return { before , after};
+}
+
+
+export function buildDiff(before: string, after: string, filePath: string): string{
+    if(before === after) return '(No changes detected)';
+
+    return createTwoFilesPatch(
+        filePath,
+        filePath,
+        before,
+        after,
+        '',
+        '',
+        { context: 3}
+    )
 }
