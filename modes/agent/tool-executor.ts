@@ -39,5 +39,36 @@ export class ToolExecutor {
         const norm = this.norm(rel);
         const segments = norm.split('/');
         const base = segments[segments.length - 1] ?? ''; 
+
+        for(const pattern of this.config.excludePatterns){
+            if(pattern === '*log' && base.endsWith('.log')) return true;
+            if(pattern === '.env*' && base.startsWith('.env')) return true;
+            if(pattern.includes('*')) continue;
+            if(segments.includes(pattern)) {
+                if(norm === pattern || norm.startsWith(`${pattern}/`)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
+
+    private assertNotExculeded(rel: string, op: string): void{
+        if (this.excluded(rel)) {
+            throw new Error(`Operation ${op} not allowed on excluded path: ${rel}`);
+        }
+    }
+
+    getEffectiveContent(rel: string): string | undefined {
+        const key = this.norm(rel);
+        if(this.deleted.has(key)) return undefined;
+        if(this.overlay.has(key)) return this.overlay.get(key);
+        const abs = this.resolveSafe(rel);
+        if(!fs.existsSync(abs)) return undefined;
+        if(fs.statSync(abs).isDirectory()) return undefined;
+        if(!isTextFile(rel)) {
+            throw new Error(`Binary file operations not supported: ${rel}`);
+        }
+        return fs.readFileSync(abs, 'utf-8');
+    } 
 }
