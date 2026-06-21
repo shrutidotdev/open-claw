@@ -38,14 +38,14 @@ export class ToolExecutor {
     private excluded(rel: string): boolean {
         const norm = this.norm(rel);
         const segments = norm.split('/');
-        const base = segments[segments.length - 1] ?? ''; 
+        const base = segments[segments.length - 1] ?? '';
 
-        for(const pattern of this.config.excludePatterns){
-            if(pattern === '*log' && base.endsWith('.log')) return true;
-            if(pattern === '.env*' && base.startsWith('.env')) return true;
-            if(pattern.includes('*')) continue;
-            if(segments.includes(pattern)) {
-                if(norm === pattern || norm.startsWith(`${pattern}/`)) {
+        for (const pattern of this.config.excludePatterns) {
+            if (pattern === '*log' && base.endsWith('.log')) return true;
+            if (pattern === '.env*' && base.startsWith('.env')) return true;
+            if (pattern.includes('*')) continue;
+            if (segments.includes(pattern)) {
+                if (norm === pattern || norm.startsWith(`${pattern}/`)) {
                     return true;
                 }
             }
@@ -53,7 +53,7 @@ export class ToolExecutor {
         return false;
     }
 
-    private assertNotExculeded(rel: string, op: string): void{
+    private assertNotExculeded(rel: string, op: string): void {
         if (this.excluded(rel)) {
             throw new Error(`Operation ${op} not allowed on excluded path: ${rel}`);
         }
@@ -61,26 +61,26 @@ export class ToolExecutor {
 
     getEffectiveContent(rel: string): string | undefined {
         const key = this.norm(rel);
-        if(this.deleted.has(key)) return undefined;
-        if(this.overlay.has(key)) return this.overlay.get(key);
+        if (this.deleted.has(key)) return undefined;
+        if (this.overlay.has(key)) return this.overlay.get(key);
         const abs = this.resolveSafe(rel);
-        if(!fs.existsSync(abs)) return undefined;
-        if(fs.statSync(abs).isDirectory()) return undefined;
-        if(!isTextFile(rel)) {
+        if (!fs.existsSync(abs)) return undefined;
+        if (fs.statSync(abs).isDirectory()) return undefined;
+        if (!isTextFile(rel)) {
             throw new Error(`Binary file operations not supported: ${rel}`);
         }
         return fs.readFileSync(abs, 'utf-8');
-    } 
+    }
 
     readFile(rel: string): string {
         this.assertNotExculeded(rel, 'read_file');
         const abs = this.resolveSafe(rel);
-        if(!fs.existsSync(abs) || fs.statSync(abs).isFile()){
+        if (!fs.existsSync(abs) || fs.statSync(abs).isFile()) {
             throw new Error(`File does not exist: ${rel}`);
         }
 
         const st = fs.statSync(abs);
-        if(st.size > this.config.maxFileSizeToRead){
+        if (st.size > this.config.maxFileSizeToRead) {
             throw new Error(`File exceeds max size to read: ${rel}`);
         }
 
@@ -99,11 +99,11 @@ export class ToolExecutor {
     }
 
     createFile(rel: string, content: string): string {
-        if(!this.config.tools.allowFileCreation) throw new Error(`File creation not allowed by config: ${rel}`);
+        if (!this.config.tools.allowFileCreation) throw new Error(`File creation not allowed by config: ${rel}`);
         this.assertNotExculeded(rel, 'create_file');
         const key = this.norm(rel);
         const abs = this.resolveSafe(rel);
-        if(fs.existsSync(abs) && !this.deleted.has(key)){
+        if (fs.existsSync(abs) && !this.deleted.has(key)) {
             throw new Error(`create file  ${rel}`);
         }
         this.deleted.delete(key);
@@ -120,18 +120,48 @@ export class ToolExecutor {
     }
 
     modifyFile(rel: string, content: string): string {
-        if(!this.config.tools.allowFileModification) throw new Error(`modify_file: file not found: ${rel}`);
+        if (!this.config.tools.allowFileModification) throw new Error(`modify_file: file not found: ${rel}`);
         this.assertNotExculeded(rel, 'modify_file');
         const before = this.getEffectiveContent(rel);
-        if(before === undefined) throw new Error(`modify_file: file not found: ${rel}`);
+        if (before === undefined) throw new Error(`modify_file: file not found: ${rel}`);
         const key = this.norm(rel)
         this.overlay.set(key, content);
         this.tracker.log({
             type: 'file_modify',
             path: key,
-            details: {before, after: content},
+            details: { before, after: content },
             status: 'Pending'
         })
         return `Staged updated: ${key}`;
+    }
+
+    deleteFile(rel: string): string {
+        if (!this.config.tools.allowFileModification) throw new Error(`File deletion is disabled`);
+        this.assertNotExculeded(rel, 'delete_file');
+        const before = this.getEffectiveContent(rel);
+        if (before === undefined) throw new Error(`delete_file: file no found ${rel}`);
+        const key = this.norm(rel);
+        this.overlay.delete(key);
+        this.deleted.add(key);
+        this.tracker.log({
+            type: 'file_delete',
+            path: key,
+            details: { before },
+            status: 'Pending',
+        });
+        return `Staged delete: ${key}`
+    }
+
+    createFolder(rel: string): string {
+        if (!this.config.tools.allowFolderCreation) throw new Error('Folder creation disabled');
+        this.assertNotExculeded(rel, 'create_folder');
+        const key = this.norm(rel);
+        this.tracker.log({
+            type: 'folder_create',
+            path: key,
+            details: { after: key},
+            status: 'Pending',
+        });
+        return `Staged folder: ${key}`
     }
 }

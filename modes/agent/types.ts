@@ -1,6 +1,7 @@
 export type ActionType =
     | "file_create"
     | "file_modify"
+    | "folder_create"
     | "file_delete"
     | "file_create"
     | "code_analysis"
