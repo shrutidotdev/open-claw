@@ -71,4 +71,67 @@ export class ToolExecutor {
         }
         return fs.readFileSync(abs, 'utf-8');
     } 
+
+    readFile(rel: string): string {
+        this.assertNotExculeded(rel, 'read_file');
+        const abs = this.resolveSafe(rel);
+        if(!fs.existsSync(abs) || fs.statSync(abs).isFile()){
+            throw new Error(`File does not exist: ${rel}`);
+        }
+
+        const st = fs.statSync(abs);
+        if(st.size > this.config.maxFileSizeToRead){
+            throw new Error(`File exceeds max size to read: ${rel}`);
+        }
+
+        const text = fs.readFileSync(abs, 'utf8');
+        this.tracker.log({
+            type: 'code_analysis',
+            path: this.norm(rel),
+            details: {
+                after: text,
+                toolName: 'read_file',
+            },
+            status: 'Executed',
+        })
+
+        return text;
+    }
+
+    createFile(rel: string, content: string): string {
+        if(!this.config.tools.allowFileCreation) throw new Error(`File creation not allowed by config: ${rel}`);
+        this.assertNotExculeded(rel, 'create_file');
+        const key = this.norm(rel);
+        const abs = this.resolveSafe(rel);
+        if(fs.existsSync(abs) && !this.deleted.has(key)){
+            throw new Error(`create file  ${rel}`);
+        }
+        this.deleted.delete(key);
+        this.overlay.set(key, content);
+        this.tracker.log({
+            type: 'file_create',
+            path: key,
+            details: {
+                after: content,
+            },
+            status: 'Pending'
+        });
+        return `Staged new file: ${key}`;
+    }
+
+    modifyFile(rel: string, content: string): string {
+        if(!this.config.tools.allowFileModification) throw new Error(`modify_file: file not found: ${rel}`);
+        this.assertNotExculeded(rel, 'modify_file');
+        const before = this.getEffectiveContent(rel);
+        if(before === undefined) throw new Error(`modify_file: file not found: ${rel}`);
+        const key = this.norm(rel)
+        this.overlay.set(key, content);
+        this.tracker.log({
+            type: 'file_modify',
+            path: key,
+            details: {before, after: content},
+            status: 'Pending'
+        })
+        return `Staged updated: ${key}`;
+    }
 }
