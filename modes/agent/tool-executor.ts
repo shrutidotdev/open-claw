@@ -159,9 +159,45 @@ export class ToolExecutor {
         this.tracker.log({
             type: 'folder_create',
             path: key,
-            details: { after: key},
+            details: { after: key },
             status: 'Pending',
         });
         return `Staged folder: ${key}`
     }
+
+    listFiles(rel: string, recursive: boolean): string {
+        this.assertNotExculeded(rel, 'list_files');
+        const abs = this.resolveSafe(rel);
+        if (!fs.existsSync(abs)) throw new Error(`list files not found: ${rel}`)
+
+        const lines: string[] = [];
+        const walk = (dir: string, prefix: string) => {
+            const entries = fs.readdirSync(dir, { withFileTypes: true });
+            for (const ent of entries) {
+                const full = path.join(dir, ent.name);
+                const relP = path.relative(this.config.codebasePath, full);
+                if (this.excluded(relP)) continue;
+                if (ent.isDirectory()) {
+                    lines.push(`${prefix}${ent.name}/`);
+                    if (recursive) walk(full, `${prefix}${ent.name}/`);
+                } else {
+                    lines.push(`${prefix}${ent.name}`);
+                }
+            }
+        }
+        if (fs.statSync(abs).isDirectory()) walk(abs, '');
+        else lines.push(path.relative(this.config.codebasePath, abs));
+
+        const out = lines.sort().join('\n');
+        this.tracker.log({
+            type: 'code_analysis',
+            path: this.norm(rel),
+            details: { after: out, toolName: 'list_files' },
+            status: 'Executed',
+        });
+          return out || '(empty)';
+
+    };
+
+
 }
