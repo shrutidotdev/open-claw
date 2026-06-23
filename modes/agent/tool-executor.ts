@@ -4,6 +4,7 @@ import { homedir } from "node:os";
 import { spawnSync } from 'node:child_process';
 import type { AgentConfig, ActionLog } from './types.ts';
 import { ActionTracker } from './action-tracker.ts';
+import { error } from "node:console";
 
 const TEXT_EXT = new Set([
     '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs',
@@ -202,9 +203,9 @@ export class ToolExecutor {
     searchFiles(rootRel: string, globPattern: string, contentQuery?: string): string {
         this.assertNotExculeded(rootRel, 'search_files');
         const rootAbs = this.resolveSafe(rootRel);
-        if(!fs.existsSync(rootAbs)) throw new Error(`search_files: root not found: ${rootRel}`)
+        if (!fs.existsSync(rootAbs)) throw new Error(`search_files: root not found: ${rootRel}`)
 
-        const results: string[] = []; 
+        const results: string[] = [];
         const regexFromGlob = (g: string): RegExp => {
             const escaped = g
                 .replace(/[.+^${}()|[\]\\]/g, '\\$&')
@@ -218,19 +219,160 @@ export class ToolExecutor {
         const nameRe = regexFromGlob(globPattern.replace(/\\/g, '/'));
 
         const walk = (dir: string) => {
-            for(const ent of fs.readdirSync(dir, { withFileTypes: true })){
+            for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
                 const full = path.join(dir, ent.name);
                 const relP = path.relative(this.config.codebasePath, full);
-                if(this.excluded(relP)) continue;
-                if(ent.isDirectory()) walk(full);
-                else if(nameRe.test(relP) || nameRe.test(ent.name)) {
-                    if(contentQuery){
-                        
+                if (this.excluded(relP)) continue;
+                if (ent.isDirectory()) walk(full);
+                else if (nameRe.test(relP) || nameRe.test(ent.name)) {
+                    if (contentQuery) {
+                        if (!isTextFile(full)) continue;
+                        const text = fs.readFileSync(full, 'utf8');
+                        if (!text.includes(contentQuery)) continue;
                     }
+                    results.push(relP);
+                }
+            }
+        };
+
+        const stat = fs.statSync(rootAbs);
+        if (stat.isDirectory()) {
+            walk(rootAbs);
+        } else {
+            const relP = path.relative(this.config.codebasePath, rootAbs).split(path.sep).join('/');
+            if (!this.excluded(relP) && (nameRe.test(relP) || nameRe.test(path.basename(rootAbs)))) {
+                if (contentQuery) {
+                    if (isTextFile(rootAbs)) {
+                        const text = fs.readFileSync(rootAbs, 'utf8');
+                        if (text.includes(contentQuery)) {
+                            results.push(relP);
+                        }
+                    }
+                } else {
+                    results.push(relP);
                 }
             }
         }
+
+        const out = results.sort().join('\n');
+        this.tracker.log({
+            type: 'code_analysis',
+            path: this.norm(rootRel),
+            details: { after: out || '(no matches)', toolName: 'search_files' },
+            status: 'Executed',
+        });
+
+        return out || '(no matches)';
     }
 
+    analyzeCodeBase(rootRel: string): string {
+        const rootAbs = this.resolveSafe(rootRel);
+        if (!fs.existsSync(rootAbs)) throw new Error(`analyze_codebase: not found: ${rootRel}`);
 
+        let files = 0;
+        let dirs = 0;
+
+        const walk = (dir: string) => {
+            for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+                const full = path.join(dir, ent.name);
+                const relP = path.relative(this.config.codebasePath, full);
+                if (this.excluded(relP)) continue;
+                if (ent.isDirectory()) {
+                    dirs++;
+                    walk(full)
+                } else {
+                    files++;
+                }
+            }
+        };
+
+        if (fs.statSync(rootAbs).isDirectory()) walk(rootAbs);
+        else files = 1;
+
+        const summary = `Files: ${files} | Directory ${dirs}`;
+        this.tracker.log({
+            type: "code_analysis",
+            path: this.norm(rootRel),
+            details: { after: summary, toolName: 'analyze_codebase' },
+            status: 'Executed',
+        });
+        return summary;
+    }
+
+    queueShell(command: string): string {
+        if (!this.config.tools.allowShellExecution) throw new Error("Shell commands has been disabled.");
+        this.tracker.log({
+            type: 'shell_command',
+            path: 'shell',
+            details: { command, toolName: 'execute_shell' },
+            status: "Pending"
+        })
+
+        return `Shell Queued: ${command}`;
+    }
+
+    skillRoots(): string[] {
+        const extra = process.env.SKILLS_DIRS?.split(/[;]/).map((s) => s.trim()).filter(Boolean) ?? [];
+        return [
+            ...extra,
+            path.join(homedir(), '.cursor/skills-cursor'),
+            path.join(homedir(), '.claude/skills'),
+        ];
+    }
+
+    listSkills(): string{
+        const lines: string[] = [];
+        for(const root of this.skillRoots()){
+            if(!fs.existsSync(root)) continue;
+            const walk = (dir: string) => {
+                for(const ent of fs.readdirSync(dir, { withFileTypes : true })){
+                    const full = path.join(dir, ent.name);
+                    if(ent.isDirectory()) walk(full);
+                    else if (ent.name === 'SKILLS.md') lines.push(full);
+                }
+            };
+            walk(root);
+        }
+
+        const out = lines.sort().join('\n'); 
+        this.tracker.log({
+            type:  'code_analysis',
+            path: 'skills',
+            details: { 
+                after: out || 'none', 
+                toolName: 'list_skills',
+            },
+            status: 'Executed'
+        });
+
+        return out || ('none');
+    }
+
+    readSkill(skillPath: string): string {
+        const abs = path.isAbsolute(skillPath)
+        ? path.normalize(skillPath)
+        : path.normalize(path.resolve(this.config.codebasePath, skillPath));
+
+        const allowed = this.skillRoots().some((root) => {
+            const r = path.resolve(root);
+            return abs === r || abs.startsWith(r + path.sep)
+        });
+        if(!allowed) throw new Error('read_skill: outside skill roots');
+        const text = fs.readFileSync(abs, 'utf8');
+        this.tracker.log({
+            type: 'code_analysis',
+            path: abs,
+            details: {
+                after: text,
+                toolName: 'read_skills',
+            },
+            status: 'Executed'
+        })
+
+        return text;
+    }
+
+    applyApprovedFromTracker(): { errors : string[] } {
+        const errors: string[] = [],
+    }
 }
