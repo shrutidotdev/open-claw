@@ -4,7 +4,7 @@ import { homedir } from "node:os";
 import { spawnSync } from 'node:child_process';
 import type { AgentConfig, ActionLog } from './types.ts';
 import { ActionTracker } from './action-tracker.ts';
-import { error, timeStamp } from "node:console";
+
 
 const TEXT_EXT = new Set([
     '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs',
@@ -414,7 +414,7 @@ export class ToolExecutor {
                 maxBuffer: 16 * 1024 * 1024,
             });
 
-            if(raw.status && raw.status !== 0) errors.push(`shell exit ${r.status}: ${cmd}`);
+            if(raw.status && raw.status !== 0) errors.push(`shell exit ${raw.status}: ${cmd}`);
         }
 
         return { errors };
