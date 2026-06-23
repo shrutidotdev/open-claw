@@ -376,7 +376,14 @@ export class ToolExecutor {
         const errors: string[] = [];
         const x = [...this.tracker.getActions()]
         for(const item of x.filter((x) => x.type === 'folder_create' && x.status==='Approved')){
-
+            try {
+                fs.mkdirSync(this.resolveSafe(item.path), { recursive: true });
+            } catch (error) {
+                errors.push(String(error))
+            }
         }
+
+        const fileOps = x
+        .filter((a) => (a.type === 'file_create' || a.type === 'file_modify' || a.type === 'file_delete' && a.status === 'Approved').sort((a, b)))
     }
 }
