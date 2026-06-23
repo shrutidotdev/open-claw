@@ -4,7 +4,7 @@ import { homedir } from "node:os";
 import { spawnSync } from 'node:child_process';
 import type { AgentConfig, ActionLog } from './types.ts';
 import { ActionTracker } from './action-tracker.ts';
-import { error } from "node:console";
+import { error, timeStamp } from "node:console";
 
 const TEXT_EXT = new Set([
     '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs',
@@ -384,6 +384,44 @@ export class ToolExecutor {
         }
 
         const fileOps = x
-        .filter((a) => (a.type === 'file_create' || a.type === 'file_modify' || a.type === 'file_delete' && a.status === 'Approved').sort((a, b)))
+        .filter((a) => (a.type === 'file_create' || a.type === 'file_modify' || a.type === 'file_delete' && a.status === 'Approved'))
+        .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+    
+        const lastByPath = new Map<string, ActionLog>();
+        for(const x of fileOps) lastByPath.set(this.norm(x.path), x);
+
+        for(const [p, a] of lastByPath){
+            try {
+                if(a.type === 'file_delete') fs.rmSync(this.resolveSafe(p), { force: true });
+                else{
+                    const target = this.resolveSafe(p);
+                    fs.mkdirSync(path.dirname(target), { recursive: true }),
+                    fs.writeFileSync(target, a.details.after ?? 'utf8')
+
+                }
+            } catch (error) {
+                errors.push(String(error))
+            }
+        }
+
+        for(const y of x.filter((z) => z.type === 'tool_execute' && z.status === 'Approved')){
+            const cmd = y.details.command;
+            if(!cmd) continue;
+            const raw = spawnSync(cmd, {
+                shell: true,
+                cwd: this.config.codebasePath,
+                encoding: 'utf8',
+                maxBuffer: 16 * 1024 * 1024,
+            });
+
+            if(raw.status && raw.status !== 0) errors.push(`shell exit ${r.status}: ${cmd}`);
+        }
+
+        return { errors };
+    }
+
+    clearStaging(): void{
+        this.overlay.clear();
+        this.deleted.clear();
     }
 }
