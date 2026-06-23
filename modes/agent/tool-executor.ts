@@ -195,9 +195,42 @@ export class ToolExecutor {
             details: { after: out, toolName: 'list_files' },
             status: 'Executed',
         });
-          return out || '(empty)';
+        return out || '(empty)';
 
     };
+
+    searchFiles(rootRel: string, globPattern: string, contentQuery?: string): string {
+        this.assertNotExculeded(rootRel, 'search_files');
+        const rootAbs = this.resolveSafe(rootRel);
+        if(!fs.existsSync(rootAbs)) throw new Error(`search_files: root not found: ${rootRel}`)
+
+        const results: string[] = []; 
+        const regexFromGlob = (g: string): RegExp => {
+            const escaped = g
+                .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+                .replace(/\*\*/g, '§§')
+                .replace(/\*/g, '[^/\\\\]*')
+                .replace(/§§/g, '.*')
+                .replace(/\?/g, '.');
+            return new RegExp(`^${escaped}$`, 'i');
+        };
+
+        const nameRe = regexFromGlob(globPattern.replace(/\\/g, '/'));
+
+        const walk = (dir: string) => {
+            for(const ent of fs.readdirSync(dir, { withFileTypes: true })){
+                const full = path.join(dir, ent.name);
+                const relP = path.relative(this.config.codebasePath, full);
+                if(this.excluded(relP)) continue;
+                if(ent.isDirectory()) walk(full);
+                else if(nameRe.test(relP) || nameRe.test(ent.name)) {
+                    if(contentQuery){
+                        
+                    }
+                }
+            }
+        }
+    }
 
 
 }
