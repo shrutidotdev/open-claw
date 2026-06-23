@@ -373,6 +373,10 @@ export class ToolExecutor {
     }
 
     applyApprovedFromTracker(): { errors : string[] } {
-        const errors: string[] = [],
+        const errors: string[] = [];
+        const x = [...this.tracker.getActions()]
+        for(const item of x.filter((x) => x.type === 'folder_create' && x.status==='Approved')){
+
+        }
     }
 }
