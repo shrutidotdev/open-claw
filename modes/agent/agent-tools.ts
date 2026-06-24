@@ -44,7 +44,7 @@ export function createAgentTools(executor: ToolExecutor) {
       inputSchema: z.object({
         path: z.string().default('.'),
       }),
-      execute: async ({ path: p }) => executor.analyzeCodebase(p),
+      execute: async ({ path: p }) => executor.analyzeCodeBase(p),
     }),
 
     list_skills: tool({

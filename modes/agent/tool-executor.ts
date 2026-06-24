@@ -76,7 +76,7 @@ export class ToolExecutor {
     readFile(rel: string): string {
         this.assertNotExculeded(rel, 'read_file');
         const abs = this.resolveSafe(rel);
-        if (!fs.existsSync(abs) || fs.statSync(abs).isFile()) {
+        if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) {
             throw new Error(`File does not exist: ${rel}`);
         }
 
@@ -263,6 +263,51 @@ export class ToolExecutor {
         });
 
         return out || '(no matches)';
+    };
+
+    grepContent(rel: string, pattern: string, caseSensitive: boolean): string {
+        this.assertNotExculeded(rel, 'grep_content');
+        const abs = this.resolveSafe(rel);
+        if (!fs.existsSync(abs)) throw new Error(`grep_content: not found: ${rel}`);
+
+        const flags = caseSensitive ? '' : 'i';
+        const regex = new RegExp(pattern, flags);
+        const results: string[] = [];
+
+        const grepFile = (filePath: string, relPath: string) => {
+            if (!isTextFile(filePath)) return;
+            const lines = fs.readFileSync(filePath, 'utf8').split('\n');
+            lines.forEach((line, i) => {
+                if (regex.test(line)) {
+                    results.push(`${relPath}:${i + 1}: ${line.trim()}`);
+                }
+            });
+        };
+
+        const stat = fs.statSync(abs);
+        if (stat.isDirectory()) {
+            const walk = (dir: string) => {
+                for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+                    const full = path.join(dir, ent.name);
+                    const relP = path.relative(this.config.codebasePath, full);
+                    if (this.excluded(relP)) continue;
+                    if (ent.isDirectory()) walk(full);
+                    else grepFile(full, relP);
+                }
+            };
+            walk(abs);
+        } else {
+            grepFile(abs, rel);
+        }
+
+        const out = results.join('\n') || '(no matches)';
+        this.tracker.log({
+            type: 'code_analysis',
+            path: this.norm(rel),
+            details: { after: out, toolName: 'grep_content' },
+            status: 'Executed',
+        });
+        return out;
     }
 
     analyzeCodeBase(rootRel: string): string {
@@ -320,26 +365,26 @@ export class ToolExecutor {
         ];
     }
 
-    listSkills(): string{
+    listSkills(): string {
         const lines: string[] = [];
-        for(const root of this.skillRoots()){
-            if(!fs.existsSync(root)) continue;
+        for (const root of this.skillRoots()) {
+            if (!fs.existsSync(root)) continue;
             const walk = (dir: string) => {
-                for(const ent of fs.readdirSync(dir, { withFileTypes : true })){
+                for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
                     const full = path.join(dir, ent.name);
-                    if(ent.isDirectory()) walk(full);
+                    if (ent.isDirectory()) walk(full);
                     else if (ent.name === 'SKILLS.md') lines.push(full);
                 }
             };
             walk(root);
         }
 
-        const out = lines.sort().join('\n'); 
+        const out = lines.sort().join('\n');
         this.tracker.log({
-            type:  'code_analysis',
+            type: 'code_analysis',
             path: 'skills',
-            details: { 
-                after: out || 'none', 
+            details: {
+                after: out || 'none',
                 toolName: 'list_skills',
             },
             status: 'Executed'
@@ -350,14 +395,14 @@ export class ToolExecutor {
 
     readSkill(skillPath: string): string {
         const abs = path.isAbsolute(skillPath)
-        ? path.normalize(skillPath)
-        : path.normalize(path.resolve(this.config.codebasePath, skillPath));
+            ? path.normalize(skillPath)
+            : path.normalize(path.resolve(this.config.codebasePath, skillPath));
 
         const allowed = this.skillRoots().some((root) => {
             const r = path.resolve(root);
             return abs === r || abs.startsWith(r + path.sep)
         });
-        if(!allowed) throw new Error('read_skill: outside skill roots');
+        if (!allowed) throw new Error('read_skill: outside skill roots');
         const text = fs.readFileSync(abs, 'utf8');
         this.tracker.log({
             type: 'code_analysis',
@@ -372,10 +417,10 @@ export class ToolExecutor {
         return text;
     }
 
-    applyApprovedFromTracker(): { errors : string[] } {
+    applyApprovedFromTracker(): { errors: string[] } {
         const errors: string[] = [];
         const x = [...this.tracker.getActions()]
-        for(const item of x.filter((x) => x.type === 'folder_create' && x.status==='Approved')){
+        for (const item of x.filter((x) => x.type === 'folder_create' && x.status === 'Approved')) {
             try {
                 fs.mkdirSync(this.resolveSafe(item.path), { recursive: true });
             } catch (error) {
@@ -384,19 +429,19 @@ export class ToolExecutor {
         }
 
         const fileOps = x
-        .filter((a) => (a.type === 'file_create' || a.type === 'file_modify' || a.type === 'file_delete' && a.status === 'Approved'))
-        .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-    
-        const lastByPath = new Map<string, ActionLog>();
-        for(const x of fileOps) lastByPath.set(this.norm(x.path), x);
+            .filter((a) => (a.type === 'file_create' || a.type === 'file_modify' || a.type === 'file_delete') && a.status === 'Approved')
+            .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 
-        for(const [p, a] of lastByPath){
+        const lastByPath = new Map<string, ActionLog>();
+        for (const x of fileOps) lastByPath.set(this.norm(x.path), x);
+
+        for (const [p, a] of lastByPath) {
             try {
-                if(a.type === 'file_delete') fs.rmSync(this.resolveSafe(p), { force: true });
-                else{
+                if (a.type === 'file_delete') fs.rmSync(this.resolveSafe(p), { force: true });
+                else {
                     const target = this.resolveSafe(p);
                     fs.mkdirSync(path.dirname(target), { recursive: true }),
-                    fs.writeFileSync(target, a.details.after ?? 'utf8')
+                        fs.writeFileSync(target, a.details.after ?? '', 'utf8')
 
                 }
             } catch (error) {
@@ -404,9 +449,9 @@ export class ToolExecutor {
             }
         }
 
-        for(const y of x.filter((z) => z.type === 'tool_execute' && z.status === 'Approved')){
+        for (const y of x.filter((z) => z.type === 'tool_execute' && z.status === 'Approved')) {
             const cmd = y.details.command;
-            if(!cmd) continue;
+            if (!cmd) continue;
             const raw = spawnSync(cmd, {
                 shell: true,
                 cwd: this.config.codebasePath,
@@ -414,13 +459,13 @@ export class ToolExecutor {
                 maxBuffer: 16 * 1024 * 1024,
             });
 
-            if(raw.status && raw.status !== 0) errors.push(`shell exit ${raw.status}: ${cmd}`);
+            if (raw.status && raw.status !== 0) errors.push(`shell exit ${raw.status}: ${cmd}`);
         }
 
         return { errors };
     }
 
-    clearStaging(): void{
+    clearStaging(): void {
         this.overlay.clear();
         this.deleted.clear();
     }
