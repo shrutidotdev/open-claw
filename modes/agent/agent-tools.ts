@@ -24,7 +24,7 @@ export function createAgentTools(executor: ToolExecutor) {
             execute: async ({ path: p, recursive }) => {
                 executor.listFiles(p, recursive)
             }
-        })
+        }),
 
         // search file
         search_files: tool({
@@ -38,6 +38,7 @@ export function createAgentTools(executor: ToolExecutor) {
                 executor.searchFiles(root, pattern, content_contains),
         }),
 
+        // analyze the code 
         analyze_codebase: tool({
             description: 'Summarize structure: file counts, sizes, extensions. Read-only.',
             inputSchema: z.object({
@@ -45,8 +46,10 @@ export function createAgentTools(executor: ToolExecutor) {
             }),
             execute: async ({ path: p }) =>
                 executor.analyzeCodeBase(p)
+        }),
 
-        })
+        // list skills
+        
 
     }
 }
