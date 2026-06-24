@@ -136,6 +136,27 @@ export class ToolExecutor {
         return `Staged updated: ${key}`;
     }
 
+    patchFile(rel: string, oldContent: string, newContent: string) {
+        if (!this.config.tools.allowFileModification)
+            throw new Error('patch_file: file modification disabled.');
+        this.assertNotExculeded(rel, 'patch_file');
+
+        const before = this.getEffectiveContent(rel);
+        if (before === undefined) throw new Error(`patch_file: file not found: ${rel}`);
+        if (!before.includes(oldContent)) throw new Error(`patch_file: old_content not found in ${rel} — make sure it matches exactly`);
+
+        const after = before.replace(oldContent, newContent);
+        const key = this.norm(rel);
+        this.overlay.set(key, after);
+        this.tracker.log({
+            type: 'file_modify',
+            path: key,
+            details: { before: after },
+            status: 'Pending',
+        });
+        return `Staged patch: ${key}`;
+    }
+
     deleteFile(rel: string): string {
         if (!this.config.tools.allowFileModification) throw new Error(`File deletion is disabled`);
         this.assertNotExculeded(rel, 'delete_file');
