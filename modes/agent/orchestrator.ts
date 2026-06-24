@@ -3,6 +3,7 @@ import chalk from "chalk";
 import { defaultAgentConfig } from "./types";
 import { ActionTracker } from "./action-tracker";
 import { ToolExecutor } from "./tool-executor";
+import { createAgentTools } from "./agent-tools";
 
 export async function runAgentMode(agent: any){
     console.log(chalk.greenBright("\n🤖 Welcome to Open Claw Agent Mode!"));
@@ -19,6 +20,6 @@ export async function runAgentMode(agent: any){
 
     const config = defaultAgentConfig();
     const tracker = new ActionTracker();
-    const executor = new ToolExecutor(tracker, config);
-    const tools = createAge
+    const executor = new ToolExecutor(config, tracker);
+    const tools = createAgentTools(executor)
 }
