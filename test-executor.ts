@@ -1,4 +1,3 @@
-// test-executor.ts
 import { ToolExecutor } from './modes/agent/tool-executor.ts';
 import { ActionTracker } from './modes/agent/action-tracker.ts';
 import { defaultAgentConfig } from './modes/agent/types.ts';
